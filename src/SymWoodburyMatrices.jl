@@ -8,8 +8,8 @@ export Diag, SymWoodbury, Id, partialInv, liftFactor, getindex
 # NOTE: we do not extend Diagonal to avoid contaminating the base
 
 ViewTypes   = Union{SubArray}
-VectorTypes = Union{Matrix, Vector, ViewTypes}
-MatrixTypes = Union{Matrix, Array{Real,2},
+VectorTypes = Union{AbstractMatrix, Vector, ViewTypes}
+MatrixTypes = Union{AbstractMatrix, Array{Real,2},
                     SparseMatrixCSC{Real,Integer}}
 
 type Diag <: AbstractMatrix{Real}
@@ -24,9 +24,9 @@ end
 *(α::Real,B::Diag)             = Diag(α*B.diag)
 *(B::Diag,α::Real)             = Diag(α*B.diag)
 *(A::Diag,B::Diag)             = Diag(A.diag.*B.diag)
-*(A::Diag,B::Matrix)           = A.diag.*B
+*(A::Diag,B::AbstractMatrix)           = A.diag.*B
 +(A::Diag,B::Diag)             = Diag(A.diag + B.diag)
-\(A::Diag,b::Matrix)           = size(b,2) == 1 ? A.diag.\b : nothing
+\(A::Diag,b::AbstractMatrix)           = size(b,2) == 1 ? A.diag.\b : nothing
 +(B::Diag,A::MatrixTypes)      = A + B
 ^(A::Diag, n::Integer)         = Diag(A.diag.^n)
 Base.full(A::Diag)             = full(Diagonal(A.diag))
@@ -44,7 +44,7 @@ type SymWoodbury{T}
   # A + BDBᵀ
   # A is symmetric
 
-  A::T; B::Matrix; D::Matrix;
+  A::T; B::AbstractMatrix; D::AbstractMatrix;
 
 end
 
@@ -81,7 +81,7 @@ function Base.full(O::SymWoodbury)
 
 end
 
-function \(O::SymWoodbury, x::Union{Matrix, Vector});
+function \(O::SymWoodbury, x::Union{AbstractMatrix, Vector});
 
   return inv(O)*x;
 
@@ -105,7 +105,7 @@ end
 
 using Base.LinAlg.BLAS:gemm!,gemm
 
-VectorTypes = Union{Matrix, Vector, ViewTypes}
+VectorTypes = Union{AbstractMatrix, Vector, ViewTypes}
 
 function *(O::SymWoodbury, x::VectorTypes)
 
@@ -125,7 +125,7 @@ function mult!(O::SymWoodbury, x::VectorTypes, o::VectorTypes)
 
 end
 
-PTypes = Union{Matrix,Diag}
+PTypes = Union{AbstractMatrix,Diag}
 
 *(α::Real, O::SymWoodbury)        = SymWoodbury(α*O.A, O.B, α*O.D);
 *(O::SymWoodbury, α::Real)        = SymWoodbury(α*O.A, O.B, α*O.D);
