@@ -4,13 +4,18 @@ import Base:+,*,-,\,^,sparse
 
 export Diag, SymWoodbury, Id, partialInv, liftFactor, getindex
 
-# Wrapper around Diagonal, extending its functionality.
-# NOTE: we do not extend Diagonal to avoid contaminating the base
-
 ViewTypes   = Union{SubArray}
 VectorTypes = Union{AbstractMatrix, Vector, ViewTypes}
 MatrixTypes = Union{AbstractMatrix, Array{Real,2},
                     SparseMatrixCSC{Real,Integer}}
+
+# ──────────────────────────────────────────────────────────────
+#
+# Diag
+# Wrapper around Diagonal, extending its functionality.
+# NOTE: we do not extend Diagonal to avoid contaminating the base
+#
+# ──────────────────────────────────────────────────────────────
 
 type Diag <: AbstractMatrix{Real}
     diag::Vector
@@ -38,21 +43,44 @@ Id(n::Integer)                 = Diag(ones(n))
 Base.sparse(A::Diag)           = spdiagm(A.diag)
 Base.getindex(A::Diag, i::Integer, j::Integer) = (i == j) ? A.diag[i] : 0
 
-type SymWoodbury{T}
+# ──────────────────────────────────────────────────────────────
+#
+# SymWoodbury
+#
+# ──────────────────────────────────────────────────────────────
+
+using Base.LinAlg.BLAS:gemm!,gemm
+"""
+    SymWoodbury(A, B, D)
+
+Represents a matrix of the form A + B*D*B'
+"""
+type SymWoodbury{TA, TB, TD}
 
   # Represents the Matrix
   # A + BDBᵀ
   # A is symmetric
 
-  A::T; B::AbstractMatrix; D::AbstractMatrix;
+  A::TA; B::TB; D::TD;
 
 end
 
-function Base.inv(O::SymWoodbury)
+function Base.inv{TA<:Any, TB<:Any, TD<:Matrix}(O::SymWoodbury{TA, TB, TD})
 
   W = inv(O.A);
   X = W*O.B;
   invD = -1*inv(O.D);
+
+  Z = inv(invD - O.B'*X);
+  return SymWoodbury(W,X,Z);
+
+end
+
+function Base.inv{TA<:Any, TB<:Any, TD<:SparseMatrixCSC}(O::SymWoodbury{TA, TB, TD})
+
+  W = inv(O.A);
+  X = W*O.B;
+  invD = -1*inv(full(O.D));
 
   Z = inv(invD - O.B'*X);
   return SymWoodbury(W,X,Z);
@@ -75,18 +103,18 @@ function partialInv(O::SymWoodbury)
 
 end
 
-function Base.full(O::SymWoodbury)
+Base.full(O::SymWoodbury) = O.A + O.B*O.D*O.B';
+\(O::SymWoodbury, x::Union{VectorTypes, MatrixTypes}) = inv(O)*x;
 
-  return O.A + O.B*O.D*O.B';
+"""
+    liftFactor(A)
 
-end
+More stable version of inv(A). liftFactor(A)(x) is the same as inv(A)*x 
 
-function \(O::SymWoodbury, x::Union{AbstractMatrix, Vector});
-
-  return inv(O)*x;
-
-end
-
+```julia
+julia> liftFactor(A)(x)
+```
+"""
 function liftFactor(O::SymWoodbury)
 
   n  = size(O.A,1)
@@ -103,11 +131,7 @@ function liftFactor(O::SymWoodbury)
 
 end
 
-using Base.LinAlg.BLAS:gemm!,gemm
-
-VectorTypes = Union{AbstractMatrix, Vector, ViewTypes}
-
-function *(O::SymWoodbury, x::VectorTypes)
+function *{TA<:Any, TB<:Matrix, TD<:Any}(O::SymWoodbury{TA,TB,TD}, x::VectorTypes)
 
   o = O.A*x;
   w = O.D*gemm('T','N',O.B,x);
@@ -116,12 +140,9 @@ function *(O::SymWoodbury, x::VectorTypes)
 
 end
 
-# In-place Multiplication
-function mult!(O::SymWoodbury, x::VectorTypes, o::VectorTypes)
+function *{TA<:Any, TB<:Any, TD<:Any}(O::SymWoodbury{TA,TB,TD}, x::VectorTypes)
 
-  mult!(O.A, x, o);
-  w = O.D*gemm('T','N',O.B,x);
-  gemm!('N','N',1.,O.B,w,1., o)
+  return O.A*x + O.B*(O.D*(O.B'x));
 
 end
 
@@ -160,7 +181,7 @@ end
 conjm(O::SymWoodbury, M) = SymWoodbury(M*O.A*M', M*O.B, O.D);
 
 Base.getindex(M::Diag, I::UnitRange, I2::UnitRange) =
-      Diag(M.diag[I]);
+  Diag(M.diag[I]);
 
 Base.getindex(O::SymWoodbury, I::UnitRange, I2::UnitRange) =
   SymWoodbury(O.A[I,I], O.B[I,:], O.D);
