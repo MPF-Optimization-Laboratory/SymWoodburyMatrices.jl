@@ -17,20 +17,19 @@ MatrixTypes = Union{AbstractMatrix, Array{Real,2},
 #
 # ──────────────────────────────────────────────────────────────
 
-type Diag <: AbstractMatrix{Real}
+type Diag 
     diag::Vector
 end
 
++(A::Diag,B::Diag)             = Diag(A.diag + B.diag)
+*(A::Diag,B::Diag)             = Diag(A.diag.*B.diag)
 function +(A::MatrixTypes,B::Diag)
     O = copy(A);
     for i = 1:size(A,2); O[i,i] = A[i,i] + B.diag[i]; end; O
 end
-
 *(α::Real,B::Diag)             = Diag(α*B.diag)
 *(B::Diag,α::Real)             = Diag(α*B.diag)
-*(A::Diag,B::Diag)             = Diag(A.diag.*B.diag)
 *(A::Diag,B::AbstractMatrix)           = A.diag.*B
-+(A::Diag,B::Diag)             = Diag(A.diag + B.diag)
 \(A::Diag,b::AbstractMatrix)           = size(b,2) == 1 ? A.diag.\b : nothing
 +(B::Diag,A::MatrixTypes)      = A + B
 ^(A::Diag, n::Integer)         = Diag(A.diag.^n)
