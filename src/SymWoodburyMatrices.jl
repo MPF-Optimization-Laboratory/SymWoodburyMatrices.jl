@@ -40,7 +40,13 @@ Base.size(A::Diag, k::Integer) = (k == 1 || k == 2) ? size(A.diag,1) : 1
 Base.size(A::Diag)             = (size(A.diag,1), size(A.diag,1))
 Id(n::Integer)                 = Diag(ones(n))
 Base.sparse(A::Diag)           = spdiagm(A.diag)
-Base.getindex(A::Diag, i::Integer, j::Integer) = (i == j) ? A.diag[i] : 0
+Base.getindex(A::Diag, i::Integer, j::Integer)  = (i == j) ? A.diag[i] : 0
+Base.Ac_mul_B(O1::Diag, O2::Diag) = O1*O2
+
+# returns a pointer to the original matrix, this is consistent with the
+# behavior of Symmetric in Base.
+Base.ctranspose(A::Diag)       = A 
+Base.Ac_mul_B(A::Diag, x::VectorTypes) = A*x
 
 # ──────────────────────────────────────────────────────────────
 #
@@ -171,11 +177,15 @@ function ^(O::SymWoodbury, n::Integer)
     #return SymWoodbury(A, Z, full( dsum(dsum(D,-D)/2 , D*B'*B*D) ));
     return SymWoodbury(A, Z, full( cat([1,2],D/2,-D/2, D*B'*B*D) ) )
   else
-    warning("Taking the matrix to a power greater than 2 is not supported.")
+    throw("Taking the matrix to a power greater than 2 is not supported.")
     return nothing
   end
 
 end
+
+# Syntax Sugar
+Base.Ac_mul_B(O1::SymWoodbury, O2::SymWoodbury) = 
+  (O1 == O2) ? O1^2 : throw("Not supported")
 
 conjm(O::SymWoodbury, M) = SymWoodbury(M*O.A*M', M*O.B, O.D);
 
@@ -185,6 +195,11 @@ Base.getindex(M::Diag, I::UnitRange, I2::UnitRange) =
 Base.getindex(O::SymWoodbury, I::UnitRange, I2::UnitRange) =
   SymWoodbury(O.A[I,I], O.B[I,:], O.D);
 
-Base.sparse(O::SymWoodbury) = sparse(full(O))
+Base.sparse(O::SymWoodbury)     = sparse(full(O))
+
+# returns a pointer to the original matrix, this is consistent with the
+# behavior of Symmetric in Base.
+Base.ctranspose(O::SymWoodbury) = O
+Base.Ac_mul_B(O::SymWoodbury, x::VectorTypes) = O*x
 
 end
